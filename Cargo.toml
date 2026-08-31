@@ -1,0 +1,11 @@
+[package]
+name = "bage"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+age = "0.12.1"
+clap = { version = "4.6.6", features = ["derive"] }
+rpassword = "7.5.4"
+tar = "0.4.46"
+walkdir = "2.5.0"
