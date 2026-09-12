@@ -1,12 +1,33 @@
-use std::{fs::File, io::{self, BufReader, BufWriter, ErrorKind}, path::Path};
+use std::{fs::File, io::{self, BufReader, BufWriter, ErrorKind}, path::{Path, PathBuf}};
 
 use age::{Decryptor, Encryptor, secrecy::SecretString};
+use dialoguer::{Confirm, Password};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use tar::{Archive, Builder};
 use walkdir::WalkDir;
 
-pub fn encrypt(path: String) -> io::Result<()>{
-    println!("encrypt path: {}", path);
+fn confirm_process(dirs: &Vec<PathBuf>) -> io::Result<()>{
+    println!("Preparing process {} folder", dirs.len());
+    println!("Directory: {}, and {} others", dirs[0].display(), dirs.len() -1 );
 
+    let confirm = Confirm::new()
+        .with_prompt("Do you want process these files?")
+        .default(true)
+        .interact()
+        .unwrap();
+
+    if !confirm{
+        return Err(io::Error::new(
+            ErrorKind::InvalidInput, 
+            "Process cancelled"
+        ));
+    }
+
+    println!("Processsing directories...");
+    Ok(())
+}
+
+pub fn encrypt(path: String) -> io::Result<()>{
     let target = Path::new(&path);
 
     if !target.exists(){
@@ -16,88 +37,124 @@ pub fn encrypt(path: String) -> io::Result<()>{
         ));
     };
 
-    let passhrase = rpassword::prompt_password("Passphrase: ").unwrap();
-    let confirm_passphrase = rpassword::prompt_password("Confirm passphrase: ").unwrap();
+    let dirs: Vec<PathBuf> =  WalkDir::new(target)
+        .max_depth(1)
+        .min_depth(1)
+        .into_iter()
+        .filter_map(|f| f.ok())
+        .filter(|f| f.file_type().is_dir())
+        .map(|f| f.path().to_path_buf())
+        .collect();
 
-    let is_same = passhrase == confirm_passphrase;
+    confirm_process(&dirs)?;
 
-    if !is_same{
-        return Err(io::Error::new(ErrorKind::InvalidInput, "Passpharse doesn't match"));
+    let passphrase = Password::new()
+        .with_prompt("Passphrase")
+        .interact()
+        .unwrap();
+    let confirm_passphrase = Password::new()
+        .with_prompt("Confirm Passphrase")
+        .interact()
+        .unwrap();
+
+    if passphrase != confirm_passphrase{
+        return Err(io::Error::new(
+            ErrorKind::InvalidInput, 
+            "Passphrase is not match"
+        ));
     }
 
+    let mp = MultiProgress::new();
+    let main_pb = mp.add(ProgressBar::new(dirs.len() as u64));
+    main_pb.set_style(ProgressStyle::default_bar()
+        .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} folder ({percent}%)")
+        .unwrap()
+        .progress_chars("#>-"));
 
-    for entry in WalkDir::new(target)
-    .min_depth(1)
-    .max_depth(1){
-        let entry_dir = entry?;
-        let entry_path = entry_dir.path();
-        let passphrase_c = passhrase.clone();
+    for entry in dirs{
+        let passphrase_file = passphrase.clone();
+        let output_path = format!("{}.tar.age", entry.display().to_string());
+        let output_file = File::create(output_path)?;
+        
+        let buffered_writer = BufWriter::new(output_file);
 
-        if entry_path.is_dir(){
-            let output_path = format!("{}.tar.age", entry_path.display().to_string());
-            let output_file = File::create(output_path)?;
-            
-            let buffered_writer = BufWriter::new(output_file);
+        let encryptor = Encryptor::with_user_passphrase(age::secrecy::SecretString::new(passphrase_file.into()));
+        let encrypt_stream = encryptor.wrap_output(buffered_writer)?;
 
-            let encryptor = Encryptor::with_user_passphrase(age::secrecy::SecretString::new(passphrase_c.into()));
-            let encrypt_stream = encryptor.wrap_output(buffered_writer)?;
+        let Some(file_stem) = entry.file_stem().and_then(|x| x.to_str()) else {
+            return Err(io::Error::new(
+                ErrorKind::InvalidInput, 
+                "filename or path is invalid"
+            ));
+        };
 
-            let Some(file_stem) = entry_path.file_stem().and_then(|x| x.to_str()) else {
-                return Err(io::Error::new(
-                    ErrorKind::InvalidInput, 
-                    "filename or path is invalid"
-                ));
-            };
+        // archive folder into tar file
+        let mut archive = Builder::new(encrypt_stream);
+        let entry_archive = entry.clone();
+        archive.append_dir_all(file_stem, entry_archive)?;
 
-            let mut archive = Builder::new(encrypt_stream);
-            archive.append_dir_all(file_stem, entry_path)?;
+        // encrypt tar file stream
+        let encrypted_stream = archive.into_inner()?;
+        encrypted_stream.finish()?;
 
-
-            let encrypted_stream = archive.into_inner()?;
-            encrypted_stream.finish()?;
-
-            println!("{} is encrypted", entry_path.display().to_string());
-
-        }
+        main_pb.inc(1);
     }
     
     Ok(())
 }
 
 pub fn decrypt(path: String) -> io::Result<()>{
-    let passhrase = rpassword::prompt_password("Passphrase: ").unwrap();
-    let confirm_passphrase = rpassword::prompt_password("Confirm passphrase: ").unwrap();
 
-    let is_same = passhrase == confirm_passphrase;
+    let target = path.clone();
+    let dirs: Vec<PathBuf> =  WalkDir::new(target)
+        .max_depth(1)
+        .min_depth(1)
+        .into_iter()
+        // filter with path is ok()
+        .filter_map(|f| f.ok())
+        // filter only file with .age extension
+        .filter(|f| f.path().extension().is_some_and(|e| e == "age"))
+        .map(|f| f.path().to_path_buf())
+        .collect();
 
-    if !is_same{
-        return Err(io::Error::new(ErrorKind::InvalidInput, "Passpharse doesn't match"));
-    }
+    confirm_process(&dirs)?;
 
-    for entry in WalkDir::new(&path)
-    .min_depth(1)
-    .max_depth(1){
-        let entry_dir = entry?;
-        let entry_path = entry_dir.path();
-        let passphrase_c = passhrase.clone();
+    let passphrase = Password::new()
+        .with_prompt("Passphrase")
+        .interact()
+        .unwrap();
 
-        if entry_path.extension().is_some_and(|e| e == "age"){
-            let input_file = File::open(entry_path)?;
+    let mp = MultiProgress::new();
+    let main_pb = mp.add(ProgressBar::new(dirs.len() as u64));
+    main_pb.set_style(ProgressStyle::default_bar()
+        .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} folder ({percent}%)")
+        .unwrap()
+        .progress_chars("#>-"));
+
+    for entry in dirs{
+        let passphrase_file = passphrase.clone();
+
+        if entry.extension().is_some_and(|e| e == "age"){
+            let entry_file = entry.clone();
+            let input_file = File::open(entry_file)?;
             let buffered_reader = BufReader::new(input_file);
             
             let decryptor = Decryptor::new(buffered_reader)
                 .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
-            let identity = age::scrypt::Identity::new(SecretString::from(passphrase_c));
-            let decrypted_stream = decryptor.decrypt(std::iter::once(&identity as &dyn age::Identity))
-                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+            let identity = age::scrypt::Identity::new(
+                SecretString::from(passphrase_file)
+            );
+            let decrypted_stream = decryptor.decrypt(
+                std::iter::once(&identity as &dyn age::Identity)
+            )
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
             let mut archive = Archive::new(decrypted_stream);
 
             archive.unpack(&path)?;
-
-            println!("all file is decrypted");
         }
+        main_pb.inc(1);
     }
 
     Ok(())
