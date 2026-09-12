@@ -27,6 +27,7 @@ fn confirm_process(dirs: &Vec<PathBuf>) -> io::Result<()>{
     Ok(())
 }
 
+
 pub fn encrypt(path: String) -> io::Result<()>{
     let target = Path::new(&path);
 
@@ -67,11 +68,16 @@ pub fn encrypt(path: String) -> io::Result<()>{
     let mp = MultiProgress::new();
     let main_pb = mp.add(ProgressBar::new(dirs.len() as u64));
     main_pb.set_style(ProgressStyle::default_bar()
-        .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} folder ({percent}%)")
+        .template("{spinner:.green} [{elapsed_precise}] [{bar:40}] {pos}/{len} folder ({percent}%) | Processsing: {msg}")
         .unwrap()
-        .progress_chars("#>-"));
+        .progress_chars("██░"));
 
-    for entry in dirs{
+    for entry in main_pb.wrap_iter(dirs.iter()){
+        let last_path = entry.file_name()
+            .and_then(|f| f.to_str())
+            .unwrap_or("Unknown");
+        main_pb.set_message(last_path.to_string());
+
         let passphrase_file = passphrase.clone();
         let output_path = format!("{}.tar.age", entry.display().to_string());
         let output_file = File::create(output_path)?;
@@ -96,15 +102,12 @@ pub fn encrypt(path: String) -> io::Result<()>{
         // encrypt tar file stream
         let encrypted_stream = archive.into_inner()?;
         encrypted_stream.finish()?;
-
-        main_pb.inc(1);
     }
     
     Ok(())
 }
 
 pub fn decrypt(path: String) -> io::Result<()>{
-
     let target = path.clone();
     let dirs: Vec<PathBuf> =  WalkDir::new(target)
         .max_depth(1)
@@ -127,11 +130,16 @@ pub fn decrypt(path: String) -> io::Result<()>{
     let mp = MultiProgress::new();
     let main_pb = mp.add(ProgressBar::new(dirs.len() as u64));
     main_pb.set_style(ProgressStyle::default_bar()
-        .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} folder ({percent}%)")
+        .template("{spinner:.green} [{elapsed_precise}] [{bar:40}] {pos}/{len} folder ({percent}%) | Processsing: {msg}")
         .unwrap()
-        .progress_chars("#>-"));
+        .progress_chars("██░"));
 
-    for entry in dirs{
+    for entry in main_pb.wrap_iter(dirs.iter()){
+        let last_path = entry.file_name()
+            .and_then(|f| f.to_str())
+            .unwrap_or("Unknown");
+        main_pb.set_message(last_path.to_string());
+
         let passphrase_file = passphrase.clone();
 
         if entry.extension().is_some_and(|e| e == "age"){
@@ -154,7 +162,6 @@ pub fn decrypt(path: String) -> io::Result<()>{
 
             archive.unpack(&path)?;
         }
-        main_pb.inc(1);
     }
 
     Ok(())
