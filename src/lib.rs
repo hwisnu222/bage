@@ -6,6 +6,12 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use tar::{Archive, Builder};
 use walkdir::WalkDir;
 
+#[derive(Debug)]
+pub struct Options{
+    pub include: Vec<String>,
+    pub exclude: Vec<String>
+}
+
 fn confirm_process(dirs: &Vec<PathBuf>) -> io::Result<()>{
     println!("Preparing process {} folder", dirs.len());
     println!("Directory: {}, and {} others", dirs[0].display(), dirs.len() -1 );
@@ -27,8 +33,7 @@ fn confirm_process(dirs: &Vec<PathBuf>) -> io::Result<()>{
     Ok(())
 }
 
-
-pub fn encrypt(path: String) -> io::Result<()>{
+pub fn encrypt(path: String, options: Options) -> io::Result<()>{
     let target = Path::new(&path);
 
     if !target.exists(){
@@ -39,11 +44,24 @@ pub fn encrypt(path: String) -> io::Result<()>{
     };
 
     let dirs: Vec<PathBuf> =  WalkDir::new(target)
-        .max_depth(1)
+        .max_depth(1) 
         .min_depth(1)
         .into_iter()
         .filter_map(|f| f.ok())
         .filter(|f| f.file_type().is_dir())
+        .filter(|f|{
+            // filter if there include/exclude path
+            if let Some(dir_name) = f.file_name().to_str(){
+                if !options.exclude.is_empty() && options.exclude.iter().any(|x| x == dir_name){
+                    return false;
+                }
+
+                if !options.include.is_empty() && !options.include.iter().any(|x| x == dir_name){
+                    return false;
+                }
+            }
+            true
+        })
         .map(|f| f.path().to_path_buf())
         .collect();
 
@@ -107,7 +125,7 @@ pub fn encrypt(path: String) -> io::Result<()>{
     Ok(())
 }
 
-pub fn decrypt(path: String) -> io::Result<()>{
+pub fn decrypt(path: String, options: Options) -> io::Result<()>{
     let target = path.clone();
     let dirs: Vec<PathBuf> =  WalkDir::new(target)
         .max_depth(1)
@@ -117,6 +135,19 @@ pub fn decrypt(path: String) -> io::Result<()>{
         .filter_map(|f| f.ok())
         // filter only file with .age extension
         .filter(|f| f.path().extension().is_some_and(|e| e == "age"))
+        .filter(|f|{
+            // filter if there include/exclude path
+            if let Some(dir_name) = f.file_name().to_str(){
+                if !options.exclude.is_empty() && options.exclude.iter().any(|x| x == dir_name){
+                    return false;
+                }
+
+                if !options.include.is_empty() && !options.include.iter().any(|x| x == dir_name){
+                    return false;
+                }
+            }
+            true
+        })
         .map(|f| f.path().to_path_buf())
         .collect();
 
