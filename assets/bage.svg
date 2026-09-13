@@ -7,11 +7,34 @@
    viewBox="0 0 300.96875 128.54613"
    version="1.1"
    id="svg1"
+   sodipodi:docname="bage.svg"
+   inkscape:version="1.4.3 (0d15f75042, 2025-12-25)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns="http://www.w3.org/2000/svg"
    xmlns:svg="http://www.w3.org/2000/svg"
    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
    xmlns:cc="http://creativecommons.org/ns#"
    xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#999999"
+     borderopacity="1"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="0.30583782"
+     inkscape:cx="438.14072"
+     inkscape:cy="49.045603"
+     inkscape:window-width="1366"
+     inkscape:window-height="699"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg1" />
   <defs
      id="defs1">
     <filter
@@ -175,12 +198,12 @@
     </rdf:RDF>
   </metadata>
   <rect
-     style="font-variation-settings:'opsz' 32, 'wght' 700;fill:#262222;stroke:#201d1d;stroke-width:3.96875;stroke-linecap:round;stroke-opacity:0"
+     style="font-variation-settings:'opsz' 32, 'wght' 700;fill:#000000;stroke:none;stroke-width:3.96875;stroke-linecap:round;stroke-opacity:0;fill-opacity:1"
      id="rect1"
-     width="297"
-     height="124.57738"
-     x="1.9843751"
-     y="1.9843799" />
+     width="300.96875"
+     height="128.54614"
+     x="-1.9149102e-06"
+     y="3.4641456e-08" />
   <g
      id="g216"
      transform="translate(-6.0106719,-34.25985)">
