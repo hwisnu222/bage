@@ -1,5 +1,3 @@
-# Bage
-
 ![bage logo](./assets/bage.svg)
 
 Bulk age(bage) is a bulk encryption tool with age

@@ -7,7 +7,14 @@ use tar::{Archive, Builder};
 use walkdir::WalkDir;
 
 #[derive(Debug)]
-pub struct Options{
+pub struct EncryptOptions{
+    pub include: Vec<String>,
+    pub exclude: Vec<String>,
+    pub hex: bool
+}
+
+#[derive(Debug)]
+pub struct DecryptOptions{
     pub include: Vec<String>,
     pub exclude: Vec<String>
 }
@@ -33,7 +40,12 @@ fn confirm_process(dirs: &Vec<PathBuf>) -> io::Result<()>{
     Ok(())
 }
 
-pub fn encrypt(path: String, options: Options) -> io::Result<()>{
+fn hex_filename() -> String{
+    let random = rand::random::<[u8; 16]>();
+    return hex::encode(random);
+}
+
+pub fn encrypt(path: String, options: EncryptOptions) -> io::Result<()>{
     let target = Path::new(&path);
 
     if !target.exists(){
@@ -96,8 +108,13 @@ pub fn encrypt(path: String, options: Options) -> io::Result<()>{
             .unwrap_or("Unknown");
         main_pb.set_message(last_path.to_string());
 
+        // check if filenames use hex filename or not
+        let filename = options.hex
+            .then(hex_filename)
+            .unwrap_or_else(|| entry.display().to_string());
+
         let passphrase_file = passphrase.clone();
-        let output_path = format!("{}.tar.age", entry.display().to_string());
+        let output_path = format!("{}.tar.age", filename);
         let output_file = File::create(output_path)?;
         
         let buffered_writer = BufWriter::new(output_file);
@@ -125,7 +142,7 @@ pub fn encrypt(path: String, options: Options) -> io::Result<()>{
     Ok(())
 }
 
-pub fn decrypt(path: String, options: Options) -> io::Result<()>{
+pub fn decrypt(path: String, options: DecryptOptions) -> io::Result<()>{
     let target = path.clone();
     let dirs: Vec<PathBuf> =  WalkDir::new(target)
         .max_depth(1)
