@@ -6,18 +6,9 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use tar::{Archive, Builder};
 use walkdir::WalkDir;
 
-#[derive(Debug)]
-pub struct EncryptOptions{
-    pub include: Vec<String>,
-    pub exclude: Vec<String>,
-    pub hex: bool
-}
+use crate::ui::{DecryptFilterArgs, EncryptFilterArgs};
 
-#[derive(Debug)]
-pub struct DecryptOptions{
-    pub include: Vec<String>,
-    pub exclude: Vec<String>
-}
+pub mod ui;
 
 fn confirm_process(dirs: &Vec<PathBuf>) -> io::Result<()>{
     println!("Preparing process {} folder", dirs.len());
@@ -45,7 +36,8 @@ fn hex_filename() -> String{
     return hex::encode(random);
 }
 
-pub fn encrypt(path: String, options: EncryptOptions) -> io::Result<()>{
+pub fn encrypt(options: EncryptFilterArgs) -> io::Result<()>{
+    let path = options.path;
     let target = Path::new(&path);
 
     if !target.exists(){
@@ -110,15 +102,23 @@ pub fn encrypt(path: String, options: EncryptOptions) -> io::Result<()>{
 
         // check if filenames use hex filename or not
         let filename = options.hex
-            .then(hex_filename)
+            .then(||{
+                let o_path = Path::new(target);
+                o_path.join(hex_filename()).display().to_string()
+            })
             .unwrap_or_else(|| entry.display().to_string());
 
         let passphrase_file = passphrase.clone();
         let output_path = format!("{}.tar.age", filename);
-        let output_file = File::create(output_path)?;
-        
-        let buffered_writer = BufWriter::new(output_file);
 
+        // dry-run
+        if options.dry_run{
+            main_pb.println(format!("{} to {}", entry.display(), output_path));
+            continue;
+        }
+        
+        let output_file = File::create(output_path)?;
+        let buffered_writer = BufWriter::new(output_file);
         let encryptor = Encryptor::with_user_passphrase(age::secrecy::SecretString::new(passphrase_file.into()));
         let encrypt_stream = encryptor.wrap_output(buffered_writer)?;
 
@@ -142,7 +142,8 @@ pub fn encrypt(path: String, options: EncryptOptions) -> io::Result<()>{
     Ok(())
 }
 
-pub fn decrypt(path: String, options: DecryptOptions) -> io::Result<()>{
+pub fn decrypt(options: DecryptFilterArgs) -> io::Result<()>{
+    let path = options.path;
     let target = path.clone();
     let dirs: Vec<PathBuf> =  WalkDir::new(target)
         .max_depth(1)
