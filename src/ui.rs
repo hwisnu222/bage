@@ -5,7 +5,6 @@ use clap::{Parser, Subcommand, Args};
 pub struct Cli{
     #[command(subcommand)] 
    pub command: CommandEnum,
-
 }
 
 #[derive(Subcommand, Debug)]
@@ -33,7 +32,10 @@ pub struct EncryptFilterArgs{
     pub hex: bool,
 
     #[arg(short, long)]
-    pub dry_run: bool
+    pub dry_run: bool,
+
+    #[arg(long)]
+    pub clean: bool
 }
 
 
@@ -49,6 +51,9 @@ pub struct DecryptFilterArgs{
 
     /// Encrypt all directories except the excluded ones
     #[arg(short='e', long="exclude", value_delimiter=',')]
-    pub exclude: Vec<String>
+    pub exclude: Vec<String>,
+
+    #[arg(long)]
+    pub clean: bool
 }
 

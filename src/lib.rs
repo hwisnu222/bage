@@ -1,4 +1,4 @@
-use std::{fs::File, io::{self, BufReader, BufWriter, ErrorKind}, path::{Path, PathBuf}};
+use std::{fs::{self, File}, io::{self, BufReader, BufWriter, ErrorKind}, path::{Path, PathBuf}};
 
 use age::{Decryptor, Encryptor, secrecy::SecretString};
 use dialoguer::{Confirm, Password};
@@ -27,7 +27,6 @@ fn confirm_process(dirs: &Vec<PathBuf>) -> io::Result<()>{
         ));
     }
 
-    println!("Processsing directories...");
     Ok(())
 }
 
@@ -137,6 +136,14 @@ pub fn encrypt(options: EncryptFilterArgs) -> io::Result<()>{
         // encrypt tar file stream
         let encrypted_stream = archive.into_inner()?;
         encrypted_stream.finish()?;
+        main_pb.println(format!("{:<12} {}", "Encrypted:", entry.display()));
+
+        if options.clean{
+            fs::remove_dir_all(entry.display().to_string())?;
+            main_pb.println(format!("{:<12} {}\n", "Deleted:", entry.display()));
+        }
+
+        main_pb.println("  ---");
     }
     
     Ok(())
@@ -210,6 +217,13 @@ pub fn decrypt(options: DecryptFilterArgs) -> io::Result<()>{
             let mut archive = Archive::new(decrypted_stream);
 
             archive.unpack(&path)?;
+            main_pb.println(format!("{:<12} {}", "Decrypted:", entry.display()));
+
+            if options.clean{
+                fs::remove_file(entry.display().to_string())?;
+                main_pb.println(format!("{:<12} {}", "Deleted:", entry.display()));
+            }
+            main_pb.println("  ---");
         }
     }
 
