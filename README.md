@@ -14,7 +14,7 @@ Before using bage, ensure that the following are available on your system:
 Install bage by running the following command in your terminal:
 
 ```bash
-curl -fsFL https://raw.githubusercontent.com/hwisnu222/bage/main/install.sh
+curl -fsSL https://raw.githubusercontent.com/hwisnu222/bage/main/install.sh | sudo bash
 ```
 
 The install script will download the bage binary and place it in your system path.
@@ -95,17 +95,6 @@ bage encrypt -d
 This is helpful for verifying your command before committing to the operation.
 
 ### Decrypt
-
-The `decrypt` subcommand reverses the encryption process. It supports a limited subset of the options available for `encrypt`:
-
-| Option                    | Description                                                      |
-| ------------------------- | ---------------------------------------------------------------- |
-| `-p, --path <PATH>`       | Decrypt all subfolders within the source directory. Default: `.` |
-| `-i, --include <INCLUDE>` | Decrypt specific directories.                                    |
-| `-e, --exclude <EXCLUDE>` | Decrypt all directories except the excluded ones.                |
-| `--clean`                 | Delete encrypted folders after decryption.                       |
-
-#### Example
 
 To decrypt all folders in the current directory:
 
