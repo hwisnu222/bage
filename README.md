@@ -14,7 +14,7 @@ Before using bage, ensure that the following are available on your system:
 Install bage by running the following command in your terminal:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hwisnu222/bage/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/hwisnu222/bage/main/install.sh | bash
 ```
 
 The install script will download the bage binary and place it in your system path.
