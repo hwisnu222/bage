@@ -35,7 +35,11 @@ pub struct EncryptFilterArgs{
     pub dry_run: bool,
 
     #[arg(long)]
-    pub clean: bool
+    pub clean: bool,
+
+    /// recipient path
+    #[arg(short='r', long)]
+    pub recipient: String
 }
 
 
@@ -54,6 +58,10 @@ pub struct DecryptFilterArgs{
     pub exclude: Vec<String>,
 
     #[arg(long)]
-    pub clean: bool
+    pub clean: bool,
+
+    /// identity path
+    #[arg(short='I', long)]
+    pub identity: String
 }
 
