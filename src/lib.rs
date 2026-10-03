@@ -1,6 +1,6 @@
-use std::{fs::{self, File}, io::{self, BufReader, BufWriter, ErrorKind}, path::{Path, PathBuf}};
+use std::{fs::{self, File}, io::{self, BufReader, BufWriter, ErrorKind, Read}, iter, path::{Path, PathBuf}, str::FromStr};
 
-use age::{Decryptor, Encryptor, secrecy::SecretString};
+use age::{Decryptor, Encryptor, secrecy::SecretString, x25519};
 use dialoguer::{Confirm, Password};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use tar::{Archive, Builder};
@@ -70,21 +70,27 @@ pub fn encrypt(options: EncryptFilterArgs) -> io::Result<()>{
 
     confirm_process(&dirs)?;
 
-    let passphrase = Password::new()
-        .with_prompt("Passphrase")
-        .interact()
-        .unwrap();
-    let confirm_passphrase = Password::new()
-        .with_prompt("Confirm Passphrase")
-        .interact()
-        .unwrap();
+    let passphrase: Option<String> = if options.recipient.is_empty(){
+        let p = Password::new()
+            .with_prompt("Passphrase")
+            .interact()
+            .unwrap();
+        let confirm_p = Password::new()
+            .with_prompt("Confirm Passphrase")
+            .interact()
+            .unwrap();
 
-    if passphrase != confirm_passphrase{
-        return Err(io::Error::new(
-            ErrorKind::InvalidInput, 
-            "Passphrase is not match"
-        ));
-    }
+        if p != confirm_p {
+            return Err(io::Error::new(
+                ErrorKind::InvalidInput, 
+                "Passphrase is not match"
+            ));
+        }
+
+        Some(p)
+    }else{
+        None
+    };
 
     let mp = MultiProgress::new();
     let main_pb = mp.add(ProgressBar::new(dirs.len() as u64));
@@ -107,7 +113,6 @@ pub fn encrypt(options: EncryptFilterArgs) -> io::Result<()>{
             })
             .unwrap_or_else(|| entry.display().to_string());
 
-        let passphrase_file = passphrase.clone();
         let output_path = format!("{}.tar.age", filename);
 
         // dry-run
@@ -118,7 +123,27 @@ pub fn encrypt(options: EncryptFilterArgs) -> io::Result<()>{
         
         let output_file = File::create(output_path)?;
         let buffered_writer = BufWriter::new(output_file);
-        let encryptor = Encryptor::with_user_passphrase(age::secrecy::SecretString::new(passphrase_file.into()));
+
+        // define encryptor
+        let encryptor = if options.recipient.is_empty() {
+            // passphrase
+            if let Some(pass) = passphrase.clone() {
+                Encryptor::with_user_passphrase(age::secrecy::SecretString::new(pass.into()))
+            }else{
+                return Err(io::Error::new(ErrorKind::Other, "Please insert passphrase"));
+            }
+        }else{
+            let mut file = File::open(&options.recipient)?;
+            let mut key_content = String::new();
+            file.read_to_string(&mut key_content)?;
+            
+            let recipient = x25519::Recipient::from_str(key_content.trim())
+                .expect("Failed parse recepients");
+
+            Encryptor::with_recipients(iter::once(&recipient as _))
+                .expect("Failed initial encryptor")
+        };
+       
         let encrypt_stream = encryptor.wrap_output(buffered_writer)?;
 
         let Some(file_stem) = entry.file_stem().and_then(|x| x.to_str()) else {
@@ -178,10 +203,15 @@ pub fn decrypt(options: DecryptFilterArgs) -> io::Result<()>{
 
     confirm_process(&dirs)?;
 
-    let passphrase = Password::new()
-        .with_prompt("Passphrase")
-        .interact()
-        .unwrap();
+    let passphrase: Option<String> = if options.identity.is_empty(){
+        let pass = Password::new()
+            .with_prompt("Passphrase")
+            .interact()
+            .unwrap();
+        Some(pass)
+    }else{
+        None
+    };
 
     let mp = MultiProgress::new();
     let main_pb = mp.add(ProgressBar::new(dirs.len() as u64));
@@ -196,8 +226,6 @@ pub fn decrypt(options: DecryptFilterArgs) -> io::Result<()>{
             .unwrap_or("Unknown");
         main_pb.set_message(last_path.to_string());
 
-        let passphrase_file = passphrase.clone();
-
         if entry.extension().is_some_and(|e| e == "age"){
             let entry_file = entry.clone();
             let input_file = File::open(entry_file)?;
@@ -206,13 +234,36 @@ pub fn decrypt(options: DecryptFilterArgs) -> io::Result<()>{
             let decryptor = Decryptor::new(buffered_reader)
                 .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
-            let identity = age::scrypt::Identity::new(
-                SecretString::from(passphrase_file)
-            );
-            let decrypted_stream = decryptor.decrypt(
-                std::iter::once(&identity as &dyn age::Identity)
-            )
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+            let decrypted_stream = if options.identity.is_empty(){
+                if let Some(pass) = passphrase.clone(){
+                    let identity = age::scrypt::Identity::new(
+                        SecretString::from(pass)
+                    );
+
+                    let stream = decryptor.decrypt(
+                        std::iter::once(&identity as &dyn age::Identity)
+                    )
+                        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+
+                    stream
+                }else{
+                    return Err(io::Error::new(ErrorKind::Other, "Please insert passphrase"));
+                }
+            }else{
+                let identity_file = age::IdentityFile::from_file(options.identity.clone())
+                    .map_err(|_| io::Error::new(ErrorKind::InvalidInput, "Failed parse identity"))?;
+                let identities = identity_file
+                    .into_identities()
+                    .map_err(|e| io::Error::new(ErrorKind::Other, format!("Failed read identity: {}", e)))?;
+
+                let stream = decryptor
+                    .decrypt(identities.iter().map(|i| {
+                        let identity: &dyn age::Identity = i.as_ref();
+                        identity
+                    }))
+                    .map_err(|e| io::Error::new(ErrorKind::Other, format!("Error: {}", e)))?;
+                stream
+            };
 
             let mut archive = Archive::new(decrypted_stream);
 
