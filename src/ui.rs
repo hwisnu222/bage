@@ -37,9 +37,9 @@ pub struct EncryptFilterArgs{
     #[arg(long)]
     pub clean: bool,
 
-    /// recipient path
+    /// recipient path (skip passphrase prompt)
     #[arg(short='r', long)]
-    pub recipient: String
+    pub recipient: Option<String>
 }
 
 
@@ -60,8 +60,8 @@ pub struct DecryptFilterArgs{
     #[arg(long)]
     pub clean: bool,
 
-    /// identity path
+    /// identity path (skip passphrase prompt)
     #[arg(short='I', long)]
-    pub identity: String
+    pub identity: Option<String>
 }
 
