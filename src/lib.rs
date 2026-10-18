@@ -70,7 +70,7 @@ pub fn encrypt(options: EncryptFilterArgs) -> io::Result<()>{
 
     confirm_process(&dirs)?;
 
-    let passphrase: Option<String> = if options.recipient.is_empty(){
+    let passphrase: Option<String> = if options.recipient.is_none(){
         let p = Password::new()
             .with_prompt("Passphrase")
             .interact()
@@ -125,7 +125,7 @@ pub fn encrypt(options: EncryptFilterArgs) -> io::Result<()>{
         let buffered_writer = BufWriter::new(output_file);
 
         // define encryptor
-        let encryptor = if options.recipient.is_empty() {
+        let encryptor = if options.recipient.is_none() {
             // passphrase
             if let Some(pass) = passphrase.clone() {
                 Encryptor::with_user_passphrase(age::secrecy::SecretString::new(pass.into()))
@@ -133,7 +133,8 @@ pub fn encrypt(options: EncryptFilterArgs) -> io::Result<()>{
                 return Err(io::Error::new(ErrorKind::Other, "Please insert passphrase"));
             }
         }else{
-            let mut file = File::open(&options.recipient)?;
+            let recipient_path = options.recipient.clone().unwrap();
+            let mut file = File::open(&recipient_path)?;
             let mut key_content = String::new();
             file.read_to_string(&mut key_content)?;
             
@@ -203,7 +204,7 @@ pub fn decrypt(options: DecryptFilterArgs) -> io::Result<()>{
 
     confirm_process(&dirs)?;
 
-    let passphrase: Option<String> = if options.identity.is_empty(){
+    let passphrase: Option<String> = if options.identity.is_none(){
         let pass = Password::new()
             .with_prompt("Passphrase")
             .interact()
@@ -234,7 +235,7 @@ pub fn decrypt(options: DecryptFilterArgs) -> io::Result<()>{
             let decryptor = Decryptor::new(buffered_reader)
                 .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
-            let decrypted_stream = if options.identity.is_empty(){
+            let decrypted_stream = if options.identity.is_none(){
                 if let Some(pass) = passphrase.clone(){
                     let identity = age::scrypt::Identity::new(
                         SecretString::from(pass)
@@ -250,7 +251,8 @@ pub fn decrypt(options: DecryptFilterArgs) -> io::Result<()>{
                     return Err(io::Error::new(ErrorKind::Other, "Please insert passphrase"));
                 }
             }else{
-                let identity_file = age::IdentityFile::from_file(options.identity.clone())
+                let identity_path = options.identity.clone().unwrap();
+                let identity_file = age::IdentityFile::from_file(identity_path)
                     .map_err(|_| io::Error::new(ErrorKind::InvalidInput, "Failed parse identity"))?;
                 let identities = identity_file
                     .into_identities()
